@@ -1,3 +1,4 @@
+from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, Form
 from fastapi.responses import FileResponse, HTMLResponse
 import subprocess
@@ -7,22 +8,13 @@ import uuid
 app = FastAPI()
 
 
+from fastapi.responses import FileResponse
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
+
 @app.get("/", response_class=HTMLResponse)
 def homepage():
-    return """
-    <html>
-        <head>
-            <title>DropExpress</title>
-        </head>
-        <body>
-            <h1>Video Downloader</h1>
-            <form action="/download" method="post">
-                <input type="text" name="url" placeholder="Enter video URL" style="width:300px;" required>
-                <button type="submit">Download</button>
-            </form>
-        </body>
-    </html>
-    """
+    return FileResponse("static/index.html")
+
 
 
 from fastapi.responses import StreamingResponse
@@ -79,4 +71,3 @@ def download_video(url: str = Form(...)):
 
     except Exception as e:
         return {"error": "Something went wrong", "details": str(e)}
-
