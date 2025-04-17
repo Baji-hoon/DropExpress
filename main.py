@@ -31,27 +31,47 @@ import shutil
 @app.post("/download")
 def download_video(url: str = Form(...)):
     video_id = str(uuid.uuid4())
-    output_path = f"{video_id}.mp4"
+    raw_path = f"{video_id}_raw.mp4"
+    clean_path = f"{video_id}_clean.mp4"
 
     try:
+        # Step 1: Download the raw video
         result = subprocess.run([
-    "yt-dlp",
-    "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-    "-o", output_path,
-    url
+            "yt-dlp",
+            "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "-o", raw_path,
+            url
         ], capture_output=True, text=True)
 
         if result.returncode != 0:
             return {"error": "Download failed", "details": result.stderr}
 
-        if not os.path.exists(output_path):
-            return {"error": "File not found after download."}
+        if not os.path.exists(raw_path):
+            return {"error": "Raw video not found"}
 
-        # Send the file and clean up after it's done streaming
+        # Step 2: Clean the metadata using ffmpeg
+        clean_cmd = [
+            "ffmpeg",
+            "-i", raw_path,
+            "-map_metadata", "-1",  # remove metadata
+            "-c", "copy",           # don't re-encode
+            clean_path,
+            "-y"  # overwrite if exists
+        ]
+        clean_result = subprocess.run(clean_cmd, capture_output=True, text=True)
+
+        if clean_result.returncode != 0:
+            return {"error": "Metadata cleaning failed", "details": clean_result.stderr}
+
+        if not os.path.exists(clean_path):
+            return {"error": "Cleaned video not found"}
+
+        # Step 3: Stream the clean video
         def file_streamer():
-            with open(output_path, "rb") as file:
+            with open(clean_path, "rb") as file:
                 yield from file
-            os.remove(output_path)
+            os.remove(raw_path)
+            os.remove(clean_path)
 
         return StreamingResponse(file_streamer(), media_type="video/mp4", headers={
             "Content-Disposition": "attachment; filename=video.mp4"
@@ -59,3 +79,4 @@ def download_video(url: str = Form(...)):
 
     except Exception as e:
         return {"error": "Something went wrong", "details": str(e)}
+
