@@ -35,10 +35,10 @@ def download_video(url: str = Form(...)):
 
     try:
         result = subprocess.run([
-            "yt-dlp",
-            "-f", "mp4",
-            "-o", output_path,
-            url
+    "yt-dlp",
+    "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+    "-o", output_path,
+    url
         ], capture_output=True, text=True)
 
         if result.returncode != 0:
