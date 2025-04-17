@@ -1,51 +1,47 @@
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form
 from fastapi.responses import FileResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
 import subprocess
 import os
 import uuid
 
 app = FastAPI()
 
-# Create downloads folder if it doesn't exist
-if not os.path.exists("downloads"):
-    os.makedirs("downloads")
-
-app.mount("/downloads", StaticFiles(directory="downloads"), name="downloads")
 
 @app.get("/", response_class=HTMLResponse)
-async def home():
+def homepage():
     return """
     <html>
-    <head><title>Video Downloader</title></head>
-    <body>
-        <h2>Download TikTok / Instagram Video</h2>
-        <form action="/download" method="post">
-            <input type="text" name="url" placeholder="Paste URL here" size="50"/>
-            <button type="submit">Download</button>
-        </form>
-    </body>
+        <head>
+            <title>DropExpress</title>
+        </head>
+        <body>
+            <h1>Video Downloader</h1>
+            <form action="/download" method="post">
+                <input type="text" name="url" placeholder="Enter video URL" style="width:300px;" required>
+                <button type="submit">Download</button>
+            </form>
+        </body>
     </html>
     """
 
+
 @app.post("/download")
-async def download_video(url: str = Form(...)):
-    file_id = str(uuid.uuid4())
-    output_path = f"downloads/{file_id}.mp4"
+def download_video(url: str = Form(...)):
+    video_id = str(uuid.uuid4())
+    output_path = f"{video_id}.mp4"
 
     try:
         subprocess.run([
             "yt-dlp",
-            "--proxy", "http://208.43.38.57:3128",
             "-o", output_path,
             "-f", "mp4",
             url
         ], check=True)
 
-        return HTMLResponse(content=f"""
-            <p>✅ Download Ready!</p>
-            <a href="/{output_path}" download>Click to download</a>
-            <br><a href="/">Download another</a>
-        """)
+        return FileResponse(path=output_path, filename="video.mp4", media_type='video/mp4')
+
     except subprocess.CalledProcessError as e:
-        return HTMLResponse(content=f"<p>❌ Failed to download. Error: {e}</p>")
+        return {"error": "Download failed", "details": str(e)}
+    finally:
+        if os.path.exists(output_path):
+            os.remove(output_path)
