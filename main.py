@@ -25,23 +25,37 @@ def homepage():
     """
 
 
+from fastapi.responses import StreamingResponse
+import shutil
+
 @app.post("/download")
 def download_video(url: str = Form(...)):
     video_id = str(uuid.uuid4())
     output_path = f"{video_id}.mp4"
 
     try:
-        subprocess.run([
+        result = subprocess.run([
             "yt-dlp",
-            "-o", output_path,
             "-f", "mp4",
+            "-o", output_path,
             url
-        ], check=True)
+        ], capture_output=True, text=True)
 
-        return FileResponse(path=output_path, filename="video.mp4", media_type='video/mp4')
+        if result.returncode != 0:
+            return {"error": "Download failed", "details": result.stderr}
 
-    except subprocess.CalledProcessError as e:
-        return {"error": "Download failed", "details": str(e)}
-    finally:
-        if os.path.exists(output_path):
+        if not os.path.exists(output_path):
+            return {"error": "File not found after download."}
+
+        # Send the file and clean up after it's done streaming
+        def file_streamer():
+            with open(output_path, "rb") as file:
+                yield from file
             os.remove(output_path)
+
+        return StreamingResponse(file_streamer(), media_type="video/mp4", headers={
+            "Content-Disposition": "attachment; filename=video.mp4"
+        })
+
+    except Exception as e:
+        return {"error": "Something went wrong", "details": str(e)}
